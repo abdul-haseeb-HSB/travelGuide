@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Kosher Travel Guide</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .tab-button.active {
+            background-color: #1d4ed8;
+            /* blue-700 */
+            color: white;
+        }
+
+        .nav-button.active {
+            background-color: #1e3a8a;
+            /* blue-800 */
+        }
+
+        .content-card {
+            background-color: #eff6ff;
+            /* blue-50 */
+            border: 1px solid #bfdbfe;
+            /* blue-200 */
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .content-card h3 {
+            color: #1e40af;
+            /* blue-700 */
+        }
+
+        .details-list li {
+            padding-left: 1.5em;
+            position: relative;
+        }
+
+        .details-list li::before {
+            content: " ★ ";
+            /* Using a relevant unicode character as a bullet point */
+            position: absolute;
+            left: 0;
+            color: #2563eb;
+            /* blue-600 */
+        }
+
+        /* Ensure content area takes available height */
+        #mainDisplayArea {
+            min-height: calc(100vh - 200px);
+            /* Adjust based on header/footer height */
+        }
+
+        @media (max-width: 640px) {
+            .tab-button {
+                width: 100%;
+                text-align: left;
+                margin-right: 0;
+                margin-bottom: 0.25rem;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="data.js"></script>
+</head>
+
+<body class="bg-blue-50 text-neutral-700">
+
+    <header class="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-50">
+        <div class="container mx-auto flex flex-wrap items-center justify-between">
+            <h1 class="text-2xl font-bold">PadovaTravels</h1>
+            <nav class="space-x-2 flex items-center mt-2 sm:mt-0">
+                <button id="navRegions" class="nav-button hover:bg-blue-700 px-3 py-2 rounded-md">Browse
+                    Regions</button>
+                <button id="navGeneralTips" class="nav-button hover:bg-blue-700 px-3 py-2 rounded-md">General
+                    Tips</button>
+            </nav>
+            <div class="mt-2 sm:mt-0 w-full sm:w-auto">
+                <input type="text" id="searchInput" placeholder="Search city or keyword..."
+                    class="p-2 rounded-md text-neutral-800 w-full sm:w-64">
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4">
+        <div id="breadcrumb" class="mb-4 text-sm text-blue-700"></div>
+        <div id="introText" class="mb-4 p-4 bg-blue-100 text-blue-800 rounded-lg">
+            Welcome to the Interactive Kosher Travel Guide! This guide provides comprehensive information for kosher
+            travelers, compiled from various community discussions and online resources. Use the navigation above to
+            browse by region or explore general travel tips. You can also use the search bar to find specific cities or
+            keywords. This is a work in progress there will be WAY more info added in the next coupe of weeks feel free
+            to reach out with edits or questions. Reach out for discounted hotel bookings, and send us a message to see
+            our staus filled with deals hacks and travel tips
+            Welcome to the Interactive Kosher Travel Guide! This guide provides comprehensive information for kosher
+            travelers, compiled from various community discussions and online resources. Use the navigation above to
+            browse by region or explore general travel tips. You can also use the search bar to find specific cities or
+            keywords. This is a work in progress there will be WAY more info added in the next coupe of weeks feel free
+            to reach out with edits or questions. Whatsapp/text for discounted hotel bookings, and to see our status
+            filled with deals, hacks, and travel tips
+        </div>
+        <div id="mainDisplayArea">
+        </div>
+    </main>
+
+    <footer class="bg-blue-600 text-white text-center p-4 mt-8">
+        <p>© 2025 Kosher Travel Information. Data compiled from community discussions and online resources.</p>
+    </footer>
+
+    <script>
+        // Function to format text with clickable links for URLs, emails, and phone numbers
+        function formatTextWithLinks(text) {
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            const emailRegex = /(\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b)/g;
+            const phoneRegex = /(\+?\d{1,3}[-. ]?\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4,})/g;
+
+            let formattedText = text;
+
+            formattedText = formattedText.replace(urlRegex, (match) => {
+                const url = match.trim();
+                const display = url.replace(/^(https?:\/\/)/, '');
+                return `<a href="${url}" target="_blank" class="text-blue-600 hover:underline">${display}</a>`;
+            });
+
+            formattedText = formattedText.replace(emailRegex, (match) => {
+                return `<a href="mailto:${match}" class="text-blue-600 hover:underline">${match}</a>`;
+            });
+
+            formattedText = formattedText.replace(phoneRegex, (match) => {
+                const phoneNumber = match.replace(/[-. ()]/g, '');
+                return `<a href="tel:${phoneNumber}" class="text-blue-600 hover:underline">${phoneNumber}</a>`; // Use phoneNumber for tel: link
+            });
+
+            return formattedText;
+        }
+
+        let currentFilters = { region: null, country: null, city: null, view: 'welcome' };
+        let breadcrumbTrail = [];
+
+        const mainDisplayArea = document.getElementById('mainDisplayArea');
+        const introTextElement = document.getElementById('introText');
+        const searchInput = document.getElementById('searchInput');
+        const breadcrumbElement = document.getElementById('breadcrumb');
+
+        function updateBreadcrumb() {
+            breadcrumbElement.innerHTML = breadcrumbTrail.map((item, index) => {
+                const isLast = index === breadcrumbTrail.length - 1;
+                return `<span class="${isLast ? 'font-semibold text-blue-800' : 'cursor-pointer hover:underline'} breadcrumb-item" data-index="${index}">${item.label}</span>`;
+            }).join(' > ');
+            // Attach event listeners to breadcrumb items
+            document.querySelectorAll('.breadcrumb-item').forEach(span => {
+                span.addEventListener('click', () => {
+                    const index = parseInt(span.dataset.index);
+                    handleBreadcrumbClick(index);
+                });
+            });
+        }
+
+        function handleBreadcrumbClick(index) {
+            const item = breadcrumbTrail[index];
+            breadcrumbTrail = breadcrumbTrail.slice(0, index + 1); // Truncate trail
+            currentFilters = { region: null, country: null, city: null, view: item.view };
+
+            if (item.view === 'regions') {
+                displayRegions();
+            } else if (item.view === 'countries') {
+                currentFilters.region = item.id || null;
+                displayCountries(item.id || null);
+            } else if (item.view === 'cities') {
+                currentFilters.region = item.regionId || null;
+                currentFilters.country = item.id || null;
+                displayCities(item.regionId || null, item.id || null);
+            } else if (item.view === 'cityDetail') {
+                currentFilters.region = item.regionId || null;
+                currentFilters.country = item.countryId || null;
+                currentFilters.city = item.id || null;
+                displayCityDetail(item.regionId || null, item.countryId || null, item.id || null);
+            } else if (item.view === 'generalTips') {
+                displayGeneralTips();
+            } else {
+                displayWelcome();
+            }
+        }
+
+        function setIntroText(text) {
+            introTextElement.innerHTML = text;
+        }
+
+        function createButton(text, onClick) {
+            const button = document.createElement('button');
+            button.textContent = text;
+            button.className = 'bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow m-1 transition duration-150 ease-in-out block w-full sm:w-auto sm:inline-block text-left sm:text-center';
+            button.onclick = onClick;
+            return button;
+        }
+
+        function displayWelcome() {
+            currentFilters.view = 'welcome';
+            mainDisplayArea.innerHTML = '';
+            setIntroText("Welcome to the Interactive Kosher Travel Guide! This guide provides comprehensive information for kosher travelers, compiled from various community discussions and online resources. Use the navigation above to browse by region or explore general travel tips. You can also use the search bar to find specific cities or keywords. This is a 'work in progress' feel free to reach out with edits or questions. Message us for discounted hotel bookings, and to see our status filled with deals hacks and travel tips");
+            breadcrumbTrail = [{ label: 'Home', view: 'welcome' }];
+            updateBreadcrumb();
+        }
+
+        function displayRegions() {
+            currentFilters = { region: null, country: null, city: null, view: 'regions' };
+            mainDisplayArea.innerHTML = '';
+            setIntroText("Explore kosher travel information by selecting a region below. You can then drill down to specific countries and cities within that region.");
+            breadcrumbTrail = [{ label: 'Home', view: 'welcome' }, { label: 'Regions', view: 'regions' }];
+            updateBreadcrumb();
+
+            const regionsToShow = travelDataStore.filter(item => item.region !== "General Travel Tips");
+            regionsToShow.sort((a, b) => a.region.localeCompare(b.region)).forEach(regionData => {
+                if (regionData.countries && regionData.countries.length > 0) {
+                    mainDisplayArea.appendChild(createButton(regionData.region, () => displayCountries(regionData.region)));
+                }
+            });
+        }
+
+        function displayCountries(regionName) {
+            currentFilters = { region: regionName, country: null, city: null, view: 'countries' };
+            const regionData = travelDataStore.find(r => r.region === regionName);
+            if (!regionData || !regionData.countries) {
+                mainDisplayArea.innerHTML = '<p class="text-neutral-600">Region not found. Please try again.</p>';
+                setIntroText('Error: Region not found. Select a region to continue.');
+                return;
+            }
+            mainDisplayArea.innerHTML = '';
+            setIntroText(`You've selected <strong>${regionName}</strong>. Choose a country below to see city-specific details and the country's overall kosher travel summary.`);
+            breadcrumbTrail = [
+                { label: 'Home', view: 'welcome' },
+                { label: 'Regions', view: 'regions' },
+                { label: regionName, view: 'countries', id: regionName }
+            ];
+            updateBreadcrumb();
+
+            if (regionData.overallWriteup) {
+                const writeupDiv = document.createElement('div');
+                writeupDiv.className = 'content-card mb-6';
+                writeupDiv.innerHTML = `<h2 class="text-xl font-semibold text-blue-800 mb-2">Overall Summary for ${regionName}</h2><p>${formatTextWithLinks(regionData.overallWriteup)}</p>`;
+                mainDisplayArea.appendChild(writeupDiv);
+            }
+
+            regionData.countries.sort((a, b) => a.name.localeCompare(b.name)).forEach(country => {
+                if (Object.keys(country.cities).length > 0 || country.overallWriteup) {
+                    mainDisplayArea.appendChild(createButton(country.name, () => displayCities(regionName, country.name)));
+                }
+            });
+        }
+
+        function displayCities(regionName, countryName) {
+            currentFilters = { region: regionName, country: countryName, city: null, view: 'cities' };
+            const regionData = travelDataStore.find(r => r.region === regionName);
+            const countryData = regionData ? regionData.countries.find(c => c.name === countryName) : null;
+            if (!countryData) {
+                mainDisplayArea.innerHTML = '<p class="text-neutral-600">Country not found. Please try again.</p>';
+                return;
+            }
+            mainDisplayArea.innerHTML = '';
+            setIntroText(`You've selected <strong>${countryName}</strong>. Choose a city to view detailed kosher travel information, or read the country's overall summary below.`);
+            breadcrumbTrail = [
+                { label: 'Home', view: 'welcome' },
+                { label: 'Regions', view: 'regions' },
+                { label: regionName, view: 'countries', id: regionName },
+                { label: countryName, view: 'cities', id: countryName, regionId: regionName }
+            ];
+            updateBreadcrumb();
+
+            if (countryData.overallWriteup) {
+                const writeupDiv = document.createElement('div');
+                writeupDiv.className = 'content-card mb-6';
+                writeupDiv.innerHTML = `<h2 class="text-xl font-semibold text-blue-800 mb-2">Overall Summary for ${countryName}</h2><p>${formatTextWithLinks(countryData.overallWriteup)}</p>`;
+                mainDisplayArea.appendChild(writeupDiv);
+            }
+
+            const citiesContainer = document.createElement('div');
+            mainDisplayArea.appendChild(citiesContainer);
+
+            const cityNames = Object.keys(countryData.cities);
+            cityNames.sort((a, b) => a.localeCompare(b)).forEach(cityName => {
+                citiesContainer.appendChild(createButton(cityName, () => displayCityDetail(regionName, countryName, cityName)));
+            });
+            if (cityNames.length === 0 && !countryData.overallWriteup) {
+                mainDisplayArea.innerHTML = `<p class="text-neutral-600">No specific city information or overall summary available for ${countryName}.</p>`;
+            }
+        }
+
+        function displayCityDetail(regionName, countryName, cityName) {
+            currentFilters = { region: regionName, country: countryName, city: cityName, view: 'cityDetail' };
+            const regionData = travelDataStore.find(r => r.region === regionName);
+            const countryData = regionData ? regionData.countries.find(c => c.name === countryName) : null;
+            const cityData = countryData ? countryData.cities[cityName] : null;
+
+            if (!cityData) {
+                mainDisplayArea.innerHTML = '<p class="text-neutral-600">City not found. Please try again.</p>';
+                return;
+            }
+            mainDisplayArea.innerHTML = '';
+            setIntroText(`Showing kosher travel information for <strong>${cityName}</strong>. Use the tabs below to explore different categories of information that were discussed in the community.`);
+            breadcrumbTrail = [
+                { label: 'Home', view: 'welcome' },
+                { label: 'Regions', view: 'regions' },
+                { label: regionName, view: 'countries', id: regionName },
+                { label: countryName, view: 'cities', id: countryName, regionId: regionName },
+                { label: cityName, view: 'cityDetail', id: cityName, countryId: countryName, regionId: regionName }
+            ];
+            updateBreadcrumb();
+
+            const cityContainer = document.createElement('div');
+            cityContainer.innerHTML = `<h2 class="text-2xl font-bold text-blue-800 mb-4">${cityName}</h2>`;
+
+            // Add date information if available
+            if (cityData.dateInfo) {
+                const dateInfo = cityData.dateInfo;
+                const dateClass = dateInfo.isRecent ? 'text-green-600' : 'text-orange-600';
+                const dateIcon = dateInfo.isRecent ? '🆕' : '⚠️';
+                const dateText = dateInfo.isRecent ? 'Recent' : 'May be outdated';
+                
+                const dateDiv = document.createElement('div');
+                dateDiv.className = `mb-4 p-3 bg-blue-50 border-l-4 border-blue-300 rounded-r ${dateClass}`;
+                dateDiv.innerHTML = `
+                    <div class="flex items-center">
+                        <span class="text-lg mr-2">${dateIcon}</span>
+                        <div>
+                            <strong>Information Date Range:</strong> ${dateInfo.dateRange}
+                            <br>
+                            <small>${dateText} - Last updated: ${dateInfo.latest}</small>
+                        </div>
+                    </div>
+                `;
+                cityContainer.appendChild(dateDiv);
+            }
+
+            const tabsContainer = document.createElement('div');
+            tabsContainer.className = 'flex flex-wrap border-b border-blue-300 mb-4';
+            const contentContainer = document.createElement('div');
+
+            const categories = [
+                { key: 'kosherFood', label: 'Kosher Food' },
+                { key: 'minyanim', label: 'Minyanim/Community' },
+                { key: 'accommodations', label: 'Accommodations' },
+                { key: 'activities', label: 'Activities' },
+                { key: 'other', label: 'More Info' }
+            ];
+
+            let firstTab = true;
+            categories.forEach(cat => {
+                if (cityData[cat.key] && cityData[cat.key].length > 0) {
+                    const tabButton = document.createElement('button');
+                    tabButton.textContent = cat.label;
+                    tabButton.className = 'tab-button py-2 px-4 mr-1 mb-1 rounded-t-lg hover:bg-blue-100 focus:outline-none';
+                    if (firstTab) {
+                        tabButton.classList.add('active');
+                        firstTab = false;
+                    }
+
+                    const categoryContent = document.createElement('div');
+                    categoryContent.className = 'category-content content-card' + (tabButton.classList.contains('active') ? '' : ' hidden');
+                    categoryContent.innerHTML = `<h3 class="text-lg font-semibold mb-2">${cat.label}</h3><ul class="list-disc pl-5 space-y-1 details-list">${cityData[cat.key].map(item => `<li>${formatTextWithLinks(item)}</li>`).join('')}</ul>`;
+                    contentContainer.appendChild(categoryContent);
+
+                    tabButton.onclick = () => {
+                        tabsContainer.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                        contentContainer.querySelectorAll('.category-content').forEach(content => content.classList.add('hidden'));
+                        tabButton.classList.add('active');
+                        categoryContent.classList.remove('hidden');
+                    };
+                    tabsContainer.appendChild(tabButton);
+                }
+            });
+
+            if (tabsContainer.children.length === 0) {
+                contentContainer.innerHTML = `<p class="text-neutral-600">No specific categorized information available for ${cityName} in the data.</p>`;
+            }
+
+            cityContainer.appendChild(tabsContainer);
+            cityContainer.appendChild(contentContainer);
+            mainDisplayArea.appendChild(cityContainer);
+        }
+
+        function displayGeneralTips() {
+            mainDisplayArea.innerHTML = "<p>This section is being updated with more detailed information from the provided travel documents.</p>";
+            setIntroText("General Travel Tips");
+            breadcrumbTrail = [{ label: 'Home', view: 'welcome' }, { label: 'General Tips', view: 'generalTips' }];
+            updateBreadcrumb();
+        }
+
+        function performSearch(query) {
+            query = query.toLowerCase().trim();
+            if (!query || query.length < 3) {
+                mainDisplayArea.innerHTML = '<p class="text-blue-600">Please enter a search term with at least 3 characters.</p>';
+                setIntroText('Enter a city name or keyword to search.');
+                return;
+            }
+            mainDisplayArea.innerHTML = '';
+            setIntroText(`Search results for "<strong>${query}</strong>":`);
+            breadcrumbTrail = [
+                { label: 'Home', view: 'welcome' },
+                { label: `Search: ${query}`, view: 'search' }
+            ];
+            updateBreadcrumb();
+
+            let resultsFound = false;
+            const resultsContainer = document.createElement('div');
+
+            travelDataStore.forEach(region => {
+                if (region.countries) {
+                    region.countries.forEach(country => {
+                        Object.entries(country.cities).forEach(([cityName, cityData]) => {
+                            let match = cityName.toLowerCase().includes(query) || country.name.toLowerCase().includes(query);
+                            if (!match) {
+                                match = Object.values(cityData).some(categoryItems =>
+                                    Array.isArray(categoryItems) && categoryItems.some(item =>
+                                        typeof item === 'string' && item.toLowerCase().includes(query)
+                                    )
+                                );
+                            }
+                            if (match) {
+                                resultsFound = true;
+                                resultsContainer.appendChild(createButton(`${cityName} (${country.name})`, () => displayCityDetail(region.region, country.name, cityName)));
+                            }
+                        });
+                    });
+                }
+            });
+
+            if (!resultsFound) {
+                resultsContainer.innerHTML = `<p class="text-blue-600">No results found for "${query}". Try a different term or browse by region.</p>`;
+            }
+            mainDisplayArea.appendChild(resultsContainer);
+        }
+
+        document.getElementById('navRegions').addEventListener('click', displayRegions);
+        document.getElementById('navGeneralTips').addEventListener('click', displayGeneralTips);
+        searchInput.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') {
+                performSearch(event.target.value);
+            }
+        });
+
+        displayWelcome();
+    </script>
+</body>
+
+</html>
